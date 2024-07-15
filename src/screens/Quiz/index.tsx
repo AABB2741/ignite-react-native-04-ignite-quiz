@@ -27,6 +27,7 @@ import { OutlineButton } from "../../components/OutlineButton";
 import { ProgressBar } from "../../components/ProgressBar";
 import { THEME } from "../../styles/theme";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { OverlayFeedback } from "../../components/overlay-feedback";
 
 interface Params {
     id: string;
@@ -40,6 +41,7 @@ const CARD_SKIP_AREA = -200;
 export function Quiz() {
     const [points, setPoints] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
+    const [statusReply, setStatusReply] = useState(0);
     const [currentQuestion, setCurrentQuestion] = useState(0);
     const [quiz, setQuiz] = useState<QuizProps>({} as QuizProps);
     const [alternativeSelected, setAlternativeSelected] = useState<
@@ -91,8 +93,11 @@ export function Quiz() {
         }
 
         if (quiz.questions[currentQuestion].correct === alternativeSelected) {
+            setStatusReply(1);
             setPoints((prevState) => prevState + 1);
+            handleNextQuestion();
         } else {
+            setStatusReply(2);
             shakeAnimation();
         }
 
@@ -118,7 +123,12 @@ export function Quiz() {
     function shakeAnimation() {
         shake.value = withSequence(
             withTiming(3, { duration: 400, easing: Easing.bounce }),
-            withTiming(0)
+            withTiming(0, undefined, (finished) => {
+                "worklet";
+                if (finished) {
+                    runOnJS(handleNextQuestion)();
+                }
+            })
         );
     }
 
@@ -175,7 +185,7 @@ export function Quiz() {
     }));
 
     const onPan = Gesture.Pan()
-        .activateAfterLongPress(50)
+        .activateAfterLongPress(200)
         .onUpdate((event) => {
             const isMovingToLeft = event.translationX < 0;
 
@@ -218,6 +228,8 @@ export function Quiz() {
 
     return (
         <View style={styles.container}>
+            <OverlayFeedback status={statusReply} />
+
             <Animated.View style={fixedProgressBarStyles}>
                 <Text style={styles.title}>{quiz.title}</Text>
 
@@ -248,6 +260,7 @@ export function Quiz() {
                             question={quiz.questions[currentQuestion]}
                             alternativeSelected={alternativeSelected}
                             setAlternativeSelected={setAlternativeSelected}
+                            onUnmount={() => setStatusReply(0)}
                         />
                     </Animated.View>
                 </GestureDetector>
